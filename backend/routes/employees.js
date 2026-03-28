@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const auth   = require('../middleware/auth');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 
 // GET /api/employees — liste des employés (filtrée par company du user)

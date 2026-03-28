@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const auth   = require('../middleware/auth');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 // POST /api/checkins — enregistrer un repas (depuis tablette)
 router.post('/', auth, auth.roles('tablette','admin'), async (req, res) => {
