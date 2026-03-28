@@ -13,7 +13,31 @@ menuRouter.get('/', auth, async (req, res) => {
   res.json(rows);
 });
 
-menuRouter.post('/', auth, auth.roles('admin','prestataire'), async (req, res) => {
+// GET /api/menus/today/:canteen_id
+menuRouter.get('/today/:canteen_id', auth, async (req, res) => {
+  const db = req.app.locals.db;
+  const { rows } = await db.query(
+    `SELECT * FROM menus WHERE canteen_id=$1 AND service_date=CURRENT_DATE ORDER BY menu_type`,
+    [req.params.canteen_id]
+  );
+  res.json(rows);
+});
+
+// GET /api/menus/week/:canteen_id
+menuRouter.get('/week/:canteen_id', auth, async (req, res) => {
+  const db = req.app.locals.db;
+  const { rows } = await db.query(
+    `SELECT * FROM menus
+     WHERE canteen_id=$1
+       AND service_date >= DATE_TRUNC('week', CURRENT_DATE)
+       AND service_date <  DATE_TRUNC('week', CURRENT_DATE) + INTERVAL '7 days'
+     ORDER BY service_date, menu_type`,
+    [req.params.canteen_id]
+  );
+  res.json(rows);
+});
+
+menuRouter.post('/', auth, auth.roles('admin','prestataire','rcantine'), async (req, res) => {
   const { canteen_id, service_date, name, description, menu_type, portions_planned } = req.body;
   const { rows } = await req.app.locals.db.query(
     `INSERT INTO menus (canteen_id,service_date,name,description,menu_type,portions_planned)

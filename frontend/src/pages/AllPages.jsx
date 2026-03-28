@@ -1,6 +1,12 @@
 // ─── Canteens.jsx ─────────────────────────────────────────
 import { useState, useEffect } from 'react';
 import { api } from '../api';
+import {
+  Chart as ChartJS, CategoryScale, LinearScale,
+  BarElement, ArcElement, Tooltip, Legend,
+} from 'chart.js';
+import { Bar, Doughnut } from 'react-chartjs-2';
+ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
 
 export function Canteens() {
   const [canteens, setCanteens] = useState([]);
@@ -72,6 +78,22 @@ export function Canteens() {
 export function PrestDash() {
   const [canteens, setCanteens] = useState([]);
   useEffect(() => { api.myCanteens().then(setCanteens); }, []);
+
+  const chartData = {
+    labels: canteens.map(c => c.name),
+    datasets: [{
+      label: 'Repas aujourd\'hui',
+      data: canteens.map(c => +(c.today_count||0)),
+      backgroundColor: canteens.map((_,i) => ['rgba(26,86,219,0.8)','rgba(5,150,105,0.8)','rgba(217,119,6,0.8)','rgba(124,58,237,0.8)'][i%4]),
+      borderRadius: 6,
+    }],
+  };
+  const chartOpts = {
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>`${ctx.raw} repas`}} },
+    scales:{ x:{grid:{display:false},ticks:{font:{size:11}}}, y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:10}}} },
+  };
+
   return (
     <>
       <div className="topbar"><div className="topbar-title">Vue d'ensemble</div><div className="topbar-actions"><div className="live-badge"><div className="live-dot"></div>En direct</div></div></div>
@@ -82,6 +104,14 @@ export function PrestDash() {
           <div className="kpi-card"><div className="kpi-label">Contrats actifs</div><div className="kpi-value">{canteens.length}</div></div>
           <div className="kpi-card green"><div className="kpi-label">Statut service</div><div className="kpi-value green" style={{fontSize:16,marginTop:4}}>Opérationnel</div></div>
         </div>
+        {canteens.length > 1 && (
+          <div className="card" style={{marginBottom:16}}>
+            <div className="card-head"><div className="card-title">Repas par cantine — aujourd'hui</div></div>
+            <div style={{padding:'12px 20px',height:180}}>
+              <Bar data={chartData} options={chartOpts} />
+            </div>
+          </div>
+        )}
         <div className="card">
           <div className="card-head"><div className="card-title">Mes cantines</div></div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -291,7 +321,36 @@ export function PrestOrders() {
 // ─── AdminDash.jsx ─────────────────────────────────────────
 export function AdminDash() {
   const [data, setData] = useState(null);
-  useEffect(() => { api.platformReport().then(setData); }, []);
+  useEffect(() => { api.platformReport().then(setData).catch(console.error); }, []);
+
+  const companies = data?.companies || [];
+
+  const barData = {
+    labels: companies.map(c => c.name),
+    datasets: [
+      { label: 'Repas (mois)', data: companies.map(c=>+(c.checkins_month||0)), backgroundColor:'rgba(26,86,219,0.75)', borderRadius:4 },
+      { label: 'Économies (k Ar)', data: companies.map(c=>Math.round((+c.savings_mga||0)/1000)), backgroundColor:'rgba(5,150,105,0.75)', borderRadius:4 },
+    ],
+  };
+  const barOpts = {
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{position:'top',labels:{boxWidth:12,font:{size:11}}} },
+    scales:{ x:{grid:{display:false},ticks:{font:{size:10}}}, y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:10}}} },
+  };
+
+  const pieData = {
+    labels: companies.map(c=>c.name),
+    datasets:[{
+      data: companies.map(c=>+(c.checkins_month||0)),
+      backgroundColor: ['rgba(26,86,219,0.8)','rgba(5,150,105,0.8)','rgba(217,119,6,0.8)','rgba(124,58,237,0.8)','rgba(220,38,38,0.7)','rgba(16,185,129,0.7)'],
+      borderWidth: 2, borderColor: 'white',
+    }],
+  };
+  const pieOpts = {
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{position:'right',labels:{boxWidth:12,font:{size:11}}}, tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${ctx.raw} repas`}} },
+  };
+
   return (
     <>
       <div className="topbar"><div className="topbar-title">Vue globale — Plateforme</div></div>
@@ -299,18 +358,36 @@ export function AdminDash() {
         {data && (
           <>
             <div className="kpi-grid">
-              <div className="kpi-card blue"><div className="kpi-label">Entreprises actives</div><div className="kpi-value">{data.companies?.length||0}</div></div>
+              <div className="kpi-card blue"><div className="kpi-label">Entreprises actives</div><div className="kpi-value">{companies.length}</div></div>
               <div className="kpi-card"><div className="kpi-label">Employés bénéficiaires</div><div className="kpi-value">{data.totals?.total_employees?.toLocaleString()||0}</div></div>
               <div className="kpi-card green"><div className="kpi-label">Économies totales</div><div className="kpi-value green">{data.totals?.savings_mga ? Math.round(data.totals.savings_mga/1000)+'K' : '—'}</div><div className="kpi-delta" style={{color:'var(--muted)'}}>MGA ce mois</div></div>
               <div className="kpi-card"><div className="kpi-label">Commissions dues</div><div className="kpi-value">{data.totals?.commission_mga ? Math.round(data.totals.commission_mga/1000)+'K' : '—'}</div><div className="kpi-delta" style={{color:'var(--muted)'}}>MGA ce mois</div></div>
             </div>
+
+            {companies.length > 0 && (
+              <div className="grid-6-4" style={{marginBottom:16}}>
+                <div className="card">
+                  <div className="card-head"><div className="card-title">Repas & économies par entreprise</div></div>
+                  <div style={{padding:'12px 20px',height:220}}>
+                    <Bar data={barData} options={barOpts} />
+                  </div>
+                </div>
+                <div className="card">
+                  <div className="card-head"><div className="card-title">Répartition des repas</div></div>
+                  <div style={{padding:'12px 20px',height:220}}>
+                    <Doughnut data={pieData} options={pieOpts} />
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="card">
               <div className="card-head"><div className="card-title">Toutes les entreprises</div></div>
               <div className="tbl-wrap">
                 <table className="tbl">
                   <thead><tr><th>Entreprise</th><th>Employés</th><th>Repas ce mois</th><th>Économies (MGA)</th><th>Commission (MGA)</th><th>Statut</th></tr></thead>
                   <tbody>
-                    {(data.companies||[]).map(c=>(
+                    {companies.map(c=>(
                       <tr key={c.id}>
                         <td><div style={{display:'flex',alignItems:'center',gap:8}}><div className="av" style={{background:'var(--blue)'}}>{c.logo_initials||c.name?.[0]}</div><span style={{fontWeight:500}}>{c.name}</span></div></td>
                         <td>{(+c.employee_count).toLocaleString()}</td>
@@ -326,6 +403,7 @@ export function AdminDash() {
             </div>
           </>
         )}
+        {!data && <div style={{textAlign:'center',color:'var(--muted)',padding:60}}>Chargement…</div>}
       </div>
     </>
   );

@@ -140,6 +140,135 @@ router.get('/platform', auth, auth.roles('admin'), async (req, res) => {
   });
 });
 
+// GET /api/reports/daf — série 12 mois (Bar repas + Line économies)
+router.get('/daf', auth, auth.roles('admin','daf'), async (req, res) => {
+  const db  = req.app.locals.db;
+  const cid = req.user.company_id;
+  if (!cid) return res.status(400).json({ error: 'company_id requis' });
+
+  try {
+    const { rows: [co] } = await db.query('SELECT * FROM companies WHERE id=$1', [cid]);
+    if (!co) return res.status(404).json({ error: 'Entreprise introuvable' });
+
+    const now = new Date();
+    const series = [];
+
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const y = d.getFullYear();
+      const m = d.getMonth() + 1;
+
+      const { rows: [cnt] } = await db.query(
+        `SELECT COALESCE(SUM(actual_checkins),0)::int AS checkins,
+                COALESCE(SUM(savings_mga),0)::int     AS savings,
+                COALESCE(SUM(commission_mga),0)::int  AS commission,
+                COALESCE(SUM(net_savings_mga),0)::int AS net_savings
+         FROM invoices
+         WHERE company_id=$1 AND year=$2 AND month=$3`,
+        [cid, y, m]
+      );
+
+      series.push({
+        label:       `${String(m).padStart(2,'0')}/${y}`,
+        year: y, month: m,
+        checkins:    cnt.checkins,
+        quota:       co.monthly_quota,
+        savings:     cnt.savings,
+        commission:  cnt.commission,
+        net_savings: cnt.net_savings,
+      });
+    }
+
+    // KPIs mois courant
+    const cur = series[series.length - 1];
+    const { rows: pending } = await db.query(
+      `SELECT COUNT(*)::int AS count FROM invoices WHERE company_id=$1 AND status='pending'`, [cid]
+    );
+
+    res.json({
+      company: { id: co.id, name: co.name, monthly_quota: co.monthly_quota, meal_price: co.meal_price, commission_rate: co.commission_rate },
+      series,
+      kpis: {
+        savings_mga:    cur.savings,
+        net_savings_mga:cur.net_savings,
+        checkins:       cur.checkins,
+        quota:          co.monthly_quota,
+        usage_pct:      co.monthly_quota > 0 ? Math.round(cur.checkins / co.monthly_quota * 100) : 0,
+        pending_invoices: pending[0].count,
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/reports/dg — vue DG consolidée 12 mois toutes cantines
+router.get('/dg', auth, auth.roles('admin','dg'), async (req, res) => {
+  const db  = req.app.locals.db;
+  const cid = req.user.company_id;
+  if (!cid) return res.status(400).json({ error: 'company_id requis' });
+
+  try {
+    const { rows: [co] } = await db.query('SELECT * FROM companies WHERE id=$1', [cid]);
+    if (!co) return res.status(404).json({ error: 'Entreprise introuvable' });
+
+    const now = new Date();
+    const series = [];
+
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const y = d.getFullYear();
+      const m = d.getMonth() + 1;
+
+      const { rows: [cnt] } = await db.query(
+        `SELECT COALESCE(SUM(actual_checkins),0)::int AS checkins,
+                COALESCE(SUM(savings_mga),0)::int     AS savings,
+                COALESCE(SUM(commission_mga),0)::int  AS commission
+         FROM invoices
+         WHERE company_id=$1 AND year=$2 AND month=$3`,
+        [cid, y, m]
+      );
+
+      series.push({
+        label:      `${String(m).padStart(2,'0')}/${y}`,
+        year: y, month: m,
+        checkins:   cnt.checkins,
+        savings:    cnt.savings,
+        commission: cnt.commission,
+        forfait:    co.monthly_quota * co.meal_price,
+      });
+    }
+
+    // Répartition par cantine (mois courant)
+    const curY = now.getFullYear(), curM = now.getMonth() + 1;
+    const { rows: byCanteen } = await db.query(
+      `SELECT ca.name AS canteen_name,
+              COALESCE(SUM(i.actual_checkins),0)::int AS checkins,
+              COALESCE(SUM(i.savings_mga),0)::int     AS savings
+       FROM canteens ca
+       LEFT JOIN invoices i ON i.canteen_id=ca.id AND i.year=$2 AND i.month=$3
+       WHERE ca.company_id=$1
+       GROUP BY ca.name ORDER BY checkins DESC`,
+      [cid, curY, curM]
+    );
+
+    res.json({
+      company: { id: co.id, name: co.name, monthly_quota: co.monthly_quota, meal_price: co.meal_price },
+      series,
+      by_canteen: byCanteen,
+      kpis: {
+        total_savings_year: series.reduce((s,r) => s+r.savings, 0),
+        total_commission_year: series.reduce((s,r) => s+r.commission, 0),
+        avg_usage_pct: co.monthly_quota > 0
+          ? Math.round(series.reduce((s,r) => s+r.checkins, 0) / (series.length * co.monthly_quota) * 100)
+          : 0,
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 function getWorkdays(year, month) {
   let count = 0;
   const d = new Date(year, month - 1, 1);

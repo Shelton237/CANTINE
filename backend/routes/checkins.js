@@ -182,6 +182,37 @@ router.get('/', auth, async (req, res) => {
   res.json({ data: rows, page: +page, limit: +limit });
 });
 
+// GET /api/checkins/me — historique personnel de l'employé connecté
+router.get('/me', auth, async (req, res) => {
+  const db = req.app.locals.db;
+  const { page = 1, limit = 20 } = req.query;
+  const offset = (page - 1) * limit;
+
+  // Trouver l'employee_id via le lien users→employees
+  const { rows: empRows } = await db.query(
+    `SELECT e.id FROM employees e
+     JOIN users u ON u.email = e.email
+     WHERE u.id = $1`, [req.user.id]
+  );
+  if (!empRows[0]) return res.status(404).json({ error: 'Profil employé introuvable' });
+
+  const { rows } = await db.query(
+    `SELECT ci.id, ci.checked_at, ci.status, ci.access_method,
+            can.name AS canteen_name, s.name AS shift_name
+     FROM checkins ci
+     JOIN canteens  can ON can.id = ci.canteen_id
+     LEFT JOIN shifts s ON s.id  = ci.shift_id
+     WHERE ci.employee_id = $1
+     ORDER BY ci.checked_at DESC
+     LIMIT $2 OFFSET $3`,
+    [empRows[0].id, limit, offset]
+  );
+  const { rows: [cnt] } = await db.query(
+    'SELECT COUNT(*)::int AS total FROM checkins WHERE employee_id=$1', [empRows[0].id]
+  );
+  res.json({ data: rows, total: cnt.total, page: +page });
+});
+
 // GET /api/checkins/today-count/:canteen_id
 router.get('/today-count/:canteen_id', auth, async (req, res) => {
   const db = req.app.locals.db;
@@ -192,6 +223,24 @@ router.get('/today-count/:canteen_id', auth, async (req, res) => {
     [req.params.canteen_id]
   );
   res.json({ count: parseInt(rows[0].count) });
+});
+
+// GET /api/checkins/live/:canteen_id — 10 derniers scans (vue temps réel RC)
+router.get('/live/:canteen_id', auth, async (req, res) => {
+  const db = req.app.locals.db;
+  const { rows } = await db.query(
+    `SELECT ci.id, ci.checked_at, ci.status, ci.access_method,
+            e.first_name, e.last_name,
+            s.name AS shift_name
+     FROM checkins ci
+     JOIN employees e   ON e.id  = ci.employee_id
+     LEFT JOIN shifts s ON s.id  = ci.shift_id
+     WHERE ci.canteen_id=$1 AND DATE(ci.checked_at)=CURRENT_DATE
+     ORDER BY ci.checked_at DESC
+     LIMIT 10`,
+    [req.params.canteen_id]
+  );
+  res.json(rows);
 });
 
 module.exports = router;

@@ -18,12 +18,17 @@ app.locals.db = pool;
 app.use('/api/auth',       require('./routes/auth'));
 app.use('/api/companies',  require('./routes/companies'));
 app.use('/api/canteens',   require('./routes/canteens'));
+app.use('/api/shifts',     require('./routes/shifts'));
+app.use('/api/schedules',  require('./routes/schedules'));
 app.use('/api/employees',  require('./routes/employees'));
 app.use('/api/checkins',   require('./routes/checkins'));
 app.use('/api/reports',    require('./routes/reports'));
 app.use('/api/menus',      require('./routes/menus'));
 app.use('/api/providers',  require('./routes/providers'));
 app.use('/api/dashboard',  require('./routes/dashboard'));
+app.use('/api/alerts',     require('./routes/alerts'));
+app.use('/api/invoices',   require('./routes/invoices'));
+app.use('/api/holidays',   require('./routes/holidays'));
 
 // ─── Health check ──────────────────────────────────────────
 app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date() }));
