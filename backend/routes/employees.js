@@ -77,17 +77,6 @@ router.post('/', auth, auth.roles('admin','drh'), async (req, res) => {
   const cid = req.user.role === 'drh' ? req.user.company_id : company_id;
   if (!cid) return res.status(400).json({ error: 'company_id requis' });
 
-  // Générer matricule auto
-  const { rows: last } = await db.query(
-    `SELECT matricule FROM employees WHERE company_id=$1 ORDER BY created_at DESC LIMIT 1`,
-    [cid]
-  );
-  const num = last[0] ? parseInt(last[0].matricule.replace('EMP-','')) + 1 : 1;
-  const matricule = `EMP-${String(num).padStart(4,'0')}`;
-
-  // QR code unique
-  const qr_code = `QR-${uuidv4().substring(0,8).toUpperCase()}`;
-
   // Hash du PIN si fourni
   let pin_hash = null;
   if (access_method === 'pin' && pin) {
@@ -96,20 +85,49 @@ router.post('/', auth, auth.roles('admin','drh'), async (req, res) => {
     pin_hash = await bcrypt.hash(pin, 10);
   }
 
-  try {
-    const { rows } = await db.query(
-      `INSERT INTO employees (company_id, matricule, first_name, last_name, email,
-                              department, shift_id, access_method, qr_code, pin_hash)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-       RETURNING id, matricule, first_name, last_name, email, department, access_method, qr_code, status`,
-      [cid, matricule, first_name, last_name, email||null, department||null,
-       shift_id||null, access_method||'qr', qr_code, pin_hash]
-    );
-    res.status(201).json(rows[0]);
-  } catch (err) {
-    if (err.code === '23505') return res.status(409).json({ error: 'Matricule ou QR déjà existant' });
-    res.status(500).json({ error: err.message });
+  let inserted = null;
+  let attempts = 0;
+
+  while (!inserted && attempts < 5) {
+    attempts++;
+    try {
+      // Générer matricule auto global - Relecture sécurisée contre les doublons 23505
+      const { rows: allEmps } = await db.query(
+        `SELECT matricule FROM employees WHERE matricule LIKE 'EMP-%'`
+      );
+      let maxNum = 0;
+      for (const row of allEmps) {
+        const parsed = parseInt(row.matricule.replace('EMP-', ''), 10);
+        if (!isNaN(parsed) && parsed > maxNum) maxNum = parsed;
+      }
+      const matricule = `EMP-${String(maxNum + 1).padStart(4, '0')}`;
+
+      // QR code unique
+      const qr_code = `QR-${uuidv4().substring(0,8).toUpperCase()}`;
+
+      const { rows } = await db.query(
+        `INSERT INTO employees (company_id, matricule, first_name, last_name, email,
+                                department, shift_id, access_method, qr_code, pin_hash)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         RETURNING id, matricule, first_name, last_name, email, department, access_method, qr_code, status`,
+        [cid, matricule, first_name, last_name, email||null, department||null,
+         shift_id||null, access_method||'qr', qr_code, pin_hash]
+      );
+      inserted = rows[0];
+    } catch (err) {
+      if (err.code === '23505') {
+        // En cas de conflit de données (doublon concurrent), on retente la boucle
+        continue;
+      }
+      return res.status(500).json({ error: err.message });
+    }
   }
+
+  if (!inserted) {
+    return res.status(409).json({ error: 'Collision persistante des données (409). Veuillez réessayer.' });
+  }
+
+  res.status(201).json(inserted);
 });
 
 // PATCH /api/employees/:id

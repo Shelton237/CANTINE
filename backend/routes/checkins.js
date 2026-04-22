@@ -88,7 +88,7 @@ router.post('/', auth, auth.roles('tablette','admin'), async (req, res) => {
       if (!inShift) {
         await db.query(
           `INSERT INTO checkins (employee_id, canteen_id, shift_id, access_method, status, device_id)
-           VALUES ($1,$2,$3,'refused_wrong_shift',$4)`,  // manque access_method placeholder
+           VALUES ($1,$2,$3,$4,'refused_wrong_shift',$5)`,
           [employee.id, canteen_id, employee.shift_id, access_method, device_id||null]
         );
         return res.json({
@@ -157,7 +157,7 @@ router.get('/', auth, async (req, res) => {
   let where = [], params = [], idx = 1;
 
   if (req.user.role === 'drh') {
-    where.push(`c.company_id = $${idx++}`);
+    where.push(`can.company_id = $${idx++}`);
     params.push(req.user.company_id);
   }
   if (canteen_id) { where.push(`ci.canteen_id = $${idx++}`); params.push(canteen_id); }
