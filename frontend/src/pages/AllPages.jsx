@@ -74,65 +74,10 @@ export function Canteens() {
   );
 }
 
+
 // ─── PrestDash.jsx ─────────────────────────────────────────
-export function PrestDash() {
-  const [canteens, setCanteens] = useState([]);
-  useEffect(() => { api.myCanteens().then(setCanteens); }, []);
+export { default as PrestDash } from './PrestDash';
 
-  const chartData = {
-    labels: canteens.map(c => c.name),
-    datasets: [{
-      label: 'Repas aujourd\'hui',
-      data: canteens.map(c => +(c.today_count||0)),
-      backgroundColor: canteens.map((_,i) => ['rgba(26,86,219,0.8)','rgba(5,150,105,0.8)','rgba(217,119,6,0.8)','rgba(124,58,237,0.8)'][i%4]),
-      borderRadius: 6,
-    }],
-  };
-  const chartOpts = {
-    responsive:true, maintainAspectRatio:false,
-    plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>`${ctx.raw} repas`}} },
-    scales:{ x:{grid:{display:false},ticks:{font:{size:11}}}, y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:10}}} },
-  };
-
-  return (
-    <>
-      <div className="topbar"><div className="topbar-title">Vue d'ensemble</div><div className="topbar-actions"><div className="live-badge"><div className="live-dot"></div>En direct</div></div></div>
-      <div className="content">
-        <div className="kpi-grid">
-          <div className="kpi-card blue"><div className="kpi-label">Cantines actives</div><div className="kpi-value">{canteens.filter(c=>c.is_open).length}</div></div>
-          <div className="kpi-card"><div className="kpi-label">Repas aujourd'hui (total)</div><div className="kpi-value">{canteens.reduce((s,c)=>s+(+c.today_count||0),0)}</div></div>
-          <div className="kpi-card"><div className="kpi-label">Contrats actifs</div><div className="kpi-value">{canteens.length}</div></div>
-          <div className="kpi-card green"><div className="kpi-label">Statut service</div><div className="kpi-value green" style={{fontSize:16,marginTop:4}}>Opérationnel</div></div>
-        </div>
-        {canteens.length > 1 && (
-          <div className="card" style={{marginBottom:16}}>
-            <div className="card-head"><div className="card-title">Repas par cantine — aujourd'hui</div></div>
-            <div style={{padding:'12px 20px',height:180}}>
-              <Bar data={chartData} options={chartOpts} />
-            </div>
-          </div>
-        )}
-        <div className="card">
-          <div className="card-head"><div className="card-title">Mes cantines</div></div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {canteens.map(c => (
-              <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px', borderBottom: '1px solid var(--border)' }}>
-                <div className="av-lg">{c.company_name?.[0]}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 500, fontSize: 13 }}>{c.company_name} — {c.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{c.location}</div>
-                </div>
-                <div style={{ textAlign: 'center' }}><div style={{ fontSize: 18, fontWeight: 500 }}>{c.today_count||0}</div><div style={{ fontSize: 10, color: 'var(--muted)' }}>repas</div></div>
-                <span className={`badge ${c.is_open ? 'green' : 'gray'}`}>{c.is_open ? 'Ouverte' : 'Fermée'}</span>
-              </div>
-            ))}
-            {!canteens.length && <div style={{ padding: 32, textAlign: 'center', color: 'var(--muted)' }}>Aucune cantine assignée</div>}
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
 
 // ─── PrestMenus.jsx ────────────────────────────────────────
 export function PrestMenus() {

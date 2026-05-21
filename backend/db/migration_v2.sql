@@ -161,3 +161,11 @@ VALUES
    '11111111-0000-0000-0000-000000000001')
 
 ON CONFLICT (email) DO NOTHING;
+
+-- ============================================================
+-- 8. AJOUT DU STATUT 'refused_wrong_canteen' DANS LES CHECKINS
+-- ============================================================
+ALTER TABLE checkins DROP CONSTRAINT IF EXISTS checkins_status_check;
+ALTER TABLE checkins ADD CONSTRAINT checkins_status_check
+  CHECK (status IN ('approved', 'refused_already_eaten', 'refused_wrong_shift', 'refused_suspended', 'refused_unknown', 'refused_wrong_canteen'));
+

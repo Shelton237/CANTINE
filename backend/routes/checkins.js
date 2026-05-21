@@ -71,6 +71,35 @@ router.post('/', auth, auth.roles('tablette','admin'), async (req, res) => {
       });
     }
 
+    // 3b. Vérifier le planning rotatif (employee_schedules)
+    const d = new Date();
+    const dayOfWeek = d.getDay() || 7; // 1=Lun, ..., 7=Dim
+    const dCopy = new Date(d);
+    dCopy.setDate(dCopy.getDate() - dayOfWeek + 1);
+    const weekStart = dCopy.toISOString().split('T')[0];
+
+    const { rows: schedRows } = await db.query(
+      `SELECT canteen_id, is_free FROM employee_schedules
+       WHERE employee_id = $1 AND week_start = $2 AND day_of_week = $3`,
+      [employee.id, weekStart, dayOfWeek]
+    );
+
+    if (schedRows.length > 0) {
+      const schedule = schedRows[0];
+      if (!schedule.is_free && schedule.canteen_id !== canteen_id) {
+        await db.query(
+          `INSERT INTO checkins (employee_id, canteen_id, shift_id, access_method, status, device_id)
+           VALUES ($1,$2,$3,$4,'refused_wrong_canteen',$5)`,
+          [employee.id, canteen_id, employee.shift_id, access_method, device_id||null]
+        );
+        return res.json({
+          status: 'refused_wrong_canteen',
+          message: "Accès refusé — vous n'êtes pas planifié dans cette cantine aujourd'hui",
+          employee: { first_name: employee.first_name, last_name: employee.last_name }
+        });
+      }
+    }
+
     // 4. Vérifier le créneau horaire
     if (employee.start_time && employee.end_time) {
       const now = new Date();
