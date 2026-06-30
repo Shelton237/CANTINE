@@ -2,13 +2,17 @@ const router = require('express').Router();
 const auth   = require('../middleware/auth');
 
 router.get('/', auth, auth.roles('admin'), async (req, res) => {
-  const { rows } = await req.app.locals.db.query(
-    `SELECT p.*, COUNT(DISTINCT cp.canteen_id) AS canteen_count
-     FROM providers p
-     LEFT JOIN canteen_providers cp ON cp.provider_id=p.id
-     GROUP BY p.id ORDER BY p.name`
-  );
-  res.json(rows);
+  try {
+    const { rows } = await req.app.locals.db.query(
+      `SELECT p.*, COUNT(DISTINCT cp.canteen_id) AS canteen_count
+       FROM providers p
+       LEFT JOIN canteen_providers cp ON cp.provider_id=p.id
+       GROUP BY p.id ORDER BY p.name`
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.get('/my', auth, auth.roles('prestataire'), async (req, res) => {

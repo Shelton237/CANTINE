@@ -25,20 +25,24 @@ router.get('/', auth, auth.roles('admin','daf','drh'), async (req, res) => {
 
   const w = where.length ? 'WHERE ' + where.join(' AND ') : '';
 
-  const { rows } = await db.query(
-    `SELECT i.*,
-            co.name  AS company_name,
-            ca.name  AS canteen_name,
-            pr.name  AS provider_name
-     FROM invoices i
-     JOIN companies co ON co.id = i.company_id
-     LEFT JOIN canteens  ca ON ca.id = i.canteen_id
-     LEFT JOIN providers pr ON pr.id = i.provider_id
-     ${w}
-     ORDER BY i.year DESC, i.month DESC`,
-    params
-  );
-  res.json(rows);
+  try {
+    const { rows } = await db.query(
+      `SELECT i.*,
+              co.name  AS company_name,
+              ca.name  AS canteen_name,
+              pr.name  AS provider_name
+       FROM invoices i
+       JOIN companies co ON co.id = i.company_id
+       LEFT JOIN canteens  ca ON ca.id = i.canteen_id
+       LEFT JOIN providers pr ON pr.id = i.provider_id
+       ${w}
+       ORDER BY i.year DESC, i.month DESC`,
+      params
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // GET /api/invoices/:id
@@ -119,8 +123,10 @@ router.post('/generate', auth, auth.roles('admin','daf'), async (req, res) => {
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'pending')
          ON CONFLICT (company_id, canteen_id, year, month)
          DO UPDATE SET
-           actual_checkins=$7, actual_mga=$10,
-           savings_mga=$11, commission_mga=$12, net_savings_mga=$13
+           monthly_quota=$6, actual_checkins=$7, meal_price=$8,
+           forfait_mga=$9, actual_mga=$10,
+           savings_mga=$11, commission_mga=$12, net_savings_mga=$13,
+           status='pending'
          RETURNING *`,
         [cid, ca.id, ca.provider_id||null, y, m,
          quota, actualCheckins, mealPrice,

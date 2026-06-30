@@ -33,7 +33,8 @@ export default function DgBudget() {
   const yearData = series.filter(s => s.year === currentYear);
   const elapsedMonths = yearData.length;
   
-  const totalActualBudget = yearData.reduce((acc, curr) => acc + (curr.checkins * (data.company?.meal_price || 0)), 0);
+  const mealPrice = data?.company?.meal_price || data?.kpis?.meal_price || 5000;
+  const totalActualBudget = yearData.reduce((acc, curr) => acc + (curr.checkins * mealPrice), 0);
   const totalCommission = yearData.reduce((acc, curr) => acc + curr.commission, 0);
   const totalSavings = yearData.reduce((acc, curr) => acc + curr.savings, 0);
 
@@ -45,7 +46,7 @@ export default function DgBudget() {
   const projectedTotal = totalActualBudget + (avgMonthlyActual * remainingMonths);
   const projectedSavingsTotal = totalSavings + (avgMonthlySavings * remainingMonths);
   
-  const companyQuotaMga = (data?.company?.monthly_quota || 0) * (data?.company?.meal_price || 0);
+  const companyQuotaMga = (data?.company?.monthly_quota || data?.kpis?.monthly_quota || 0) * mealPrice;
   const annualForfait = companyQuotaMga * 12;
 
   const chartData = {
@@ -83,7 +84,7 @@ export default function DgBudget() {
             <div className="kpi-label">Dépenses YTD</div>
             <div className="kpi-value">{totalActualBudget.toLocaleString()} MGA</div>
           </div>
-          <div className="kpi-card gray">
+          <div className="kpi-card">
             <div className="kpi-label">Projection annuelle (EOY)</div>
             <div className="kpi-value">{projectedTotal.toLocaleString()} MGA</div>
           </div>

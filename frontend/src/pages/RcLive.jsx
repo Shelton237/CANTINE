@@ -105,7 +105,7 @@ export default function RcLive() {
     labels: chartLabels.length ? chartLabels : ['En attente de donnees'],
     datasets: [
       {
-        label: 'Flux de repaservis',
+        label: 'Flux de repas servis',
         data: chartDataCounts.length ? chartDataCounts : [0],
         borderColor: '#1a56db',
         backgroundColor: 'rgba(26, 86, 219, 0.1)',
@@ -177,7 +177,7 @@ export default function RcLive() {
                   ) : liveScans.map((scan, i) => (
                     <tr key={i}>
                       <td>
-                        <div style={{fontWeight:600}}>{scan.employee_name || 'Inconnu'}</div>
+                        <div style={{fontWeight:600}}>{scan.first_name ? `${scan.first_name} ${scan.last_name}` : 'Inconnu'}</div>
                         <div style={{fontSize:'0.75rem', color:'var(--muted)'}}>
                           {new Date(scan.checked_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}
                         </div>

@@ -63,9 +63,9 @@ export const api = {
   checkin:        (b)               => request('POST', '/checkins', b),
   getCheckins:    (params='')       => request('GET',  `/checkins?${params}`),
   getMyCheckins:  (params='')       => request('GET',  `/checkins/me?${params}`),
+  getCheckinMe:   (params='')       => request('GET',  `/checkins/me?${params}`),
   todayCount:     (canteenId)       => request('GET',  `/checkins/today-count/${canteenId}`),
   getLiveCheckins:(canteenId)       => request('GET',  `/checkins/live/${canteenId}`),
-  getMyCheckins:  (params='')       => request('GET',  `/checkins/me?${params}`),
 
   // ── Alerts ────────────────────────────────────────────────
   getAlerts:      (params='')       => request('GET',  `/alerts?${params}`),

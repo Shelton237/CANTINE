@@ -3,24 +3,34 @@ const compRouter = require('express').Router();
 const auth = require('../middleware/auth');
 
 compRouter.get('/', auth, auth.roles('admin'), async (req, res) => {
-  const { rows } = await req.app.locals.db.query(
-    `SELECT co.*, COUNT(DISTINCT e.id) AS employee_count,
-            COUNT(DISTINCT ca.id) AS canteen_count
-     FROM companies co
-     LEFT JOIN employees e  ON e.company_id=co.id AND e.status='active'
-     LEFT JOIN canteens  ca ON ca.company_id=co.id
-     GROUP BY co.id ORDER BY co.name`
-  );
-  res.json(rows);
+  try {
+    const { rows } = await req.app.locals.db.query(
+      `SELECT co.*, COUNT(DISTINCT e.id) AS employee_count,
+              COUNT(DISTINCT ca.id) AS canteen_count
+       FROM companies co
+       LEFT JOIN employees e  ON e.company_id=co.id AND e.status='active'
+       LEFT JOIN canteens  ca ON ca.company_id=co.id
+       GROUP BY co.id ORDER BY co.name`
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 compRouter.get('/:id', auth, async (req, res) => {
   const db = req.app.locals.db;
-  if (req.user.role === 'drh' && req.user.company_id !== req.params.id)
+  // Seuls admin et le DRH/DAF/DG de la même company peuvent accéder
+  const scopedRoles = ['drh','daf','dg','rcantine'];
+  if (scopedRoles.includes(req.user.role) && req.user.company_id !== req.params.id)
     return res.status(403).json({ error: 'Accès interdit' });
-  const { rows } = await db.query('SELECT * FROM companies WHERE id=$1', [req.params.id]);
-  if (!rows[0]) return res.status(404).json({ error: 'Entreprise introuvable' });
-  res.json(rows[0]);
+  try {
+    const { rows } = await db.query('SELECT * FROM companies WHERE id=$1', [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ error: 'Entreprise introuvable' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 compRouter.post('/', auth, auth.roles('admin'), async (req, res) => {

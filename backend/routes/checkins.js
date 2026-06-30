@@ -177,38 +177,44 @@ router.post('/', auth, auth.roles('tablette','admin'), async (req, res) => {
   }
 });
 
-// GET /api/checkins — historique (DRH ou admin)
+// GET /api/checkins — historique (DRH, DAF ou admin)
 router.get('/', auth, async (req, res) => {
   const db = req.app.locals.db;
-  const { canteen_id, date, status, page = 1, limit = 50 } = req.query;
+  const { canteen_id, date, status, year, month, page = 1, limit = 50 } = req.query;
   const offset = (page - 1) * limit;
 
   let where = [], params = [], idx = 1;
 
-  if (req.user.role === 'drh') {
+  if (req.user.role === 'drh' || req.user.role === 'daf') {
     where.push(`can.company_id = $${idx++}`);
     params.push(req.user.company_id);
   }
   if (canteen_id) { where.push(`ci.canteen_id = $${idx++}`); params.push(canteen_id); }
   if (date)       { where.push(`DATE(ci.checked_at) = $${idx++}`); params.push(date); }
+  if (year)       { where.push(`EXTRACT(YEAR  FROM ci.checked_at) = $${idx++}`); params.push(parseInt(year)); }
+  if (month)      { where.push(`EXTRACT(MONTH FROM ci.checked_at) = $${idx++}`); params.push(parseInt(month)); }
   if (status)     { where.push(`ci.status = $${idx++}`); params.push(status); }
 
   const w = where.length ? 'WHERE ' + where.join(' AND ') : '';
 
-  const { rows } = await db.query(
-    `SELECT ci.id, ci.checked_at, ci.status, ci.access_method,
-            e.first_name, e.last_name, e.matricule, e.department,
-            s.name AS shift_name, can.name AS canteen_name
-     FROM checkins ci
-     JOIN employees e   ON e.id  = ci.employee_id
-     JOIN canteens  can ON can.id = ci.canteen_id
-     LEFT JOIN shifts s ON s.id  = ci.shift_id
-     ${w}
-     ORDER BY ci.checked_at DESC
-     LIMIT $${idx} OFFSET $${idx+1}`,
-    [...params, limit, offset]
-  );
-  res.json({ data: rows, page: +page, limit: +limit });
+  try {
+    const { rows } = await db.query(
+      `SELECT ci.id, ci.checked_at, ci.status, ci.access_method,
+              e.first_name, e.last_name, e.matricule, e.department,
+              s.name AS shift_name, can.name AS canteen_name
+       FROM checkins ci
+       JOIN employees e   ON e.id  = ci.employee_id
+       JOIN canteens  can ON can.id = ci.canteen_id
+       LEFT JOIN shifts s ON s.id  = ci.shift_id
+       ${w}
+       ORDER BY ci.checked_at DESC
+       LIMIT $${idx} OFFSET $${idx+1}`,
+      [...params, limit, offset]
+    );
+    res.json({ data: rows, page: +page, limit: +limit });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // GET /api/checkins/me — historique personnel de l'employé connecté
@@ -217,59 +223,77 @@ router.get('/me', auth, async (req, res) => {
   const { page = 1, limit = 20 } = req.query;
   const offset = (page - 1) * limit;
 
-  // Trouver l'employee_id via le lien users→employees
-  const { rows: empRows } = await db.query(
-    `SELECT e.id FROM employees e
-     JOIN users u ON u.email = e.email
-     WHERE u.id = $1`, [req.user.id]
-  );
-  if (!empRows[0]) return res.status(404).json({ error: 'Profil employé introuvable' });
+  try {
+    // Trouver l'employee_id via le lien users→employees (jointure par email)
+    const { rows: empRows } = await db.query(
+      `SELECT e.id FROM employees e
+       JOIN users u ON u.email = e.email
+       WHERE u.id = $1`, [req.user.id]
+    );
+    if (!empRows[0]) return res.status(404).json({ error: 'Profil employé introuvable' });
 
-  const { rows } = await db.query(
-    `SELECT ci.id, ci.checked_at, ci.status, ci.access_method,
-            can.name AS canteen_name, s.name AS shift_name
-     FROM checkins ci
-     JOIN canteens  can ON can.id = ci.canteen_id
-     LEFT JOIN shifts s ON s.id  = ci.shift_id
-     WHERE ci.employee_id = $1
-     ORDER BY ci.checked_at DESC
-     LIMIT $2 OFFSET $3`,
-    [empRows[0].id, limit, offset]
-  );
-  const { rows: [cnt] } = await db.query(
-    'SELECT COUNT(*)::int AS total FROM checkins WHERE employee_id=$1', [empRows[0].id]
-  );
-  res.json({ data: rows, total: cnt.total, page: +page });
+    const { rows } = await db.query(
+      `SELECT ci.id, ci.checked_at, ci.status, ci.access_method,
+              can.name AS canteen_name, s.name AS shift_name
+       FROM checkins ci
+       JOIN canteens  can ON can.id = ci.canteen_id
+       LEFT JOIN shifts s ON s.id  = ci.shift_id
+       WHERE ci.employee_id = $1
+       ORDER BY ci.checked_at DESC
+       LIMIT $2 OFFSET $3`,
+      [empRows[0].id, limit, offset]
+    );
+    const { rows: [cnt] } = await db.query(
+      'SELECT COUNT(*)::int AS total FROM checkins WHERE employee_id=$1', [empRows[0].id]
+    );
+    res.json({ data: rows, total: cnt.total, page: +page });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // GET /api/checkins/today-count/:canteen_id
 router.get('/today-count/:canteen_id', auth, async (req, res) => {
   const db = req.app.locals.db;
-  const { rows } = await db.query(
-    `SELECT COUNT(*) AS count
-     FROM checkins
-     WHERE canteen_id=$1 AND DATE(checked_at)=CURRENT_DATE AND status='approved'`,
-    [req.params.canteen_id]
-  );
-  res.json({ count: parseInt(rows[0].count) });
+  try {
+    const { rows } = await db.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE status='approved') AS approved,
+         COUNT(*) FILTER (WHERE status != 'approved') AS rejected
+       FROM checkins
+       WHERE canteen_id=$1 AND DATE(checked_at)=CURRENT_DATE`,
+      [req.params.canteen_id]
+    );
+    res.json({
+      count:    parseInt(rows[0].approved),
+      approved: parseInt(rows[0].approved),
+      rejected: parseInt(rows[0].rejected)
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // GET /api/checkins/live/:canteen_id — 10 derniers scans (vue temps réel RC)
 router.get('/live/:canteen_id', auth, async (req, res) => {
   const db = req.app.locals.db;
-  const { rows } = await db.query(
-    `SELECT ci.id, ci.checked_at, ci.status, ci.access_method,
-            e.first_name, e.last_name,
-            s.name AS shift_name
-     FROM checkins ci
-     JOIN employees e   ON e.id  = ci.employee_id
-     LEFT JOIN shifts s ON s.id  = ci.shift_id
-     WHERE ci.canteen_id=$1 AND DATE(ci.checked_at)=CURRENT_DATE
-     ORDER BY ci.checked_at DESC
-     LIMIT 10`,
-    [req.params.canteen_id]
-  );
-  res.json(rows);
+  try {
+    const { rows } = await db.query(
+      `SELECT ci.id, ci.checked_at, ci.status, ci.access_method,
+              e.first_name, e.last_name,
+              s.name AS shift_name
+       FROM checkins ci
+       JOIN employees e   ON e.id  = ci.employee_id
+       LEFT JOIN shifts s ON s.id  = ci.shift_id
+       WHERE ci.canteen_id=$1 AND DATE(ci.checked_at)=CURRENT_DATE
+       ORDER BY ci.checked_at DESC
+       LIMIT 10`,
+      [req.params.canteen_id]
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

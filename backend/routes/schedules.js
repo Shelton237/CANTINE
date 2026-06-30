@@ -41,20 +41,24 @@ router.get('/', auth, auth.roles('admin','drh','rcantine','employe','daf','dg'),
     params.push(canteen_id);
   }
 
-  const { rows } = await db.query(
-    `SELECT es.*,
-            e.first_name, e.last_name, e.matricule, e.department,
-            s.name AS shift_name,
-            ca.name AS canteen_name
-     FROM employee_schedules es
-     JOIN employees e  ON e.id  = es.employee_id
-     JOIN canteens  ca ON ca.id = es.canteen_id
-     LEFT JOIN shifts s ON s.id = e.shift_id
-     WHERE ${where.join(' AND ')}
-     ORDER BY e.last_name, e.first_name, es.day_of_week`,
-    params
-  );
-  res.json({ week_start: ws, data: rows });
+  try {
+    const { rows } = await db.query(
+      `SELECT es.*,
+              e.first_name, e.last_name, e.matricule, e.department,
+              s.name AS shift_name,
+              ca.name AS canteen_name
+       FROM employee_schedules es
+       JOIN employees e  ON e.id  = es.employee_id
+       JOIN canteens  ca ON ca.id = es.canteen_id
+       LEFT JOIN shifts s ON s.id = e.shift_id
+       WHERE ${where.join(' AND ')}
+       ORDER BY e.last_name, e.first_name, es.day_of_week`,
+      params
+    );
+    res.json({ week_start: ws, data: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // POST /api/schedules — upsert
@@ -65,21 +69,29 @@ router.post('/', auth, auth.roles('admin','drh'), async (req, res) => {
   if (!employee_id || !week_start || !day_of_week)
     return res.status(400).json({ error: 'employee_id, week_start, day_of_week requis' });
 
-  const { rows } = await db.query(
-    `INSERT INTO employee_schedules (employee_id, canteen_id, week_start, day_of_week, is_free)
-     VALUES ($1, $2, $3, $4, $5)
-     ON CONFLICT (employee_id, week_start, day_of_week)
-     DO UPDATE SET canteen_id=$2, is_free=$5
-     RETURNING *`,
-    [employee_id, canteen_id||null, week_start, day_of_week, is_free||false]
-  );
-  res.status(201).json(rows[0]);
+  try {
+    const { rows } = await db.query(
+      `INSERT INTO employee_schedules (employee_id, canteen_id, week_start, day_of_week, is_free)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (employee_id, week_start, day_of_week)
+       DO UPDATE SET canteen_id=$2, is_free=$5
+       RETURNING *`,
+      [employee_id, canteen_id||null, week_start, day_of_week, is_free||false]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // DELETE /api/schedules/:id
 router.delete('/:id', auth, auth.roles('admin','drh'), async (req, res) => {
-  await req.app.locals.db.query('DELETE FROM employee_schedules WHERE id=$1', [req.params.id]);
-  res.json({ ok: true });
+  try {
+    await req.app.locals.db.query('DELETE FROM employee_schedules WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

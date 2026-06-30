@@ -20,23 +20,22 @@ export default function DafExport() {
     if(!periodStr) return;
     setLoadingPreview(true);
     // On récupère les checkins du mois pour faire l'aperçu
-    api.getCheckins(`limit=500&date=${periodStr}`)
+    const [y, m] = periodStr.split('-');
+    api.getCheckins(`limit=500&year=${y}&month=${m}`)
       .then(res => {
-         const data = res.data || [];
+         const data = Array.isArray(res) ? res : (res.data || []);
          
-         // Agrégation par employé
+         // Agrégation par employé (clé = matricule ou nom)
          const agg = {};
          data.forEach(c => {
-            const eName = c.employee_name || `Emp #${c.employee_id}`;
-            const eId   = c.employee_id;
-            const dept  = c.department || 'Général';
-            
-            if(!agg[eId]) {
-              agg[eId] = { id: eId, name: eName, department: dept, count: 0 };
+            if (c.status !== 'approved') return;
+            const key  = c.matricule || `${c.first_name}_${c.last_name}`;
+            const name = `${c.first_name || ''} ${c.last_name || ''}`.trim();
+            const dept = c.department || 'Général';
+            if (!agg[key]) {
+              agg[key] = { id: key, matricule: c.matricule || key, name, department: dept, count: 0 };
             }
-            if(c.status === 'approved') {
-              agg[eId].count += 1;
-            }
+            agg[key].count += 1;
          });
          
          const arr = Object.values(agg).filter(x => x.count > 0);
@@ -70,13 +69,13 @@ export default function DafExport() {
       }
 
       preview.forEach(emp => {
-        const totalAmount = emp.count * 2000; // exemple: déduction employé = 2000 MGA par repas
-        
+        const totalAmount = emp.count * 2000;
+
         if(format === 'sage100') {
-           csvContent += `PAIE;31${String(m).padStart(2,'0')}${y.slice(2)};PCAN;CAN_${emp.id};641000;${emp.id};Repas Cantine - ${emp.name};${totalAmount};0\n`;
+           csvContent += `PAIE;31${String(m).padStart(2,'0')}${y.slice(2)};PCAN;CAN_${emp.matricule};641000;${emp.matricule};Repas Cantine - ${emp.name};${totalAmount};0\n`;
         } else {
            const row = [];
-           if(cols.matricule) row.push(emp.id);
+           if(cols.matricule) row.push(emp.matricule);
            row.push(emp.name);
            if(cols.departement) row.push(emp.department);
            if(cols.code_analytique) row.push(`ANA-${emp.department.substring(0,3).toUpperCase()}`);
@@ -180,7 +179,7 @@ export default function DafExport() {
                   <tbody>
                     {preview.slice(0, 10).map(emp => (
                       <tr key={emp.id}>
-                        {cols.matricule && <td style={{fontSize:'0.85em', color:'var(--muted)'}}>{emp.id.substring(0,8)}</td>}
+                        {cols.matricule && <td style={{fontSize:'0.85em', color:'var(--muted)'}}>{emp.matricule}</td>}
                         <td>{emp.name}</td>
                         {cols.departement && <td>{emp.department}</td>}
                         {cols.nb_repas && <td style={{textAlign:'right'}}><strong>{emp.count}</strong></td>}

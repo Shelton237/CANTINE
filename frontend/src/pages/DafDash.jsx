@@ -48,12 +48,13 @@ export default function DafDash() {
       },
       {
         label: 'Forfait (MGA)',
-        data: series.map(s => s.quota * (data?.company?.meal_price || 0)),
+        data: series.map(s => (s.quota || 0) * (data?.company?.meal_price || data?.kpis?.meal_price || 5000)),
         type: 'line',
         borderColor: '#c0392b',
         borderDash: [4, 3],
         pointRadius: 0,
         fill: false,
+        tension: 0,
         order: 1,
       }
     ]
@@ -78,19 +79,19 @@ export default function DafDash() {
         <div className="kpi-grid">
           <div className="kpi-card blue">
             <div className="kpi-label">Dépenses réelles (mois courant)</div>
-            <div className="kpi-value">{(kpis.checkins * (data?.company?.meal_price || 0)).toLocaleString()} MGA</div>
+            <div className="kpi-value">{((kpis.checkins || 0) * (data?.company?.meal_price || data?.kpis?.meal_price || 5000)).toLocaleString()} MGA</div>
           </div>
           <div className="kpi-card green">
             <div className="kpi-label">Économies (mois courant)</div>
-            <div className="kpi-value">{kpis.savings_mga?.toLocaleString()} MGA</div>
+            <div className="kpi-value">{(kpis.savings_mga || 0).toLocaleString()} MGA</div>
           </div>
           <div className="kpi-card amber">
             <div className="kpi-label">Factures en attente</div>
-            <div className="kpi-value">{kpis.pending_invoices || 0}</div>
+            <div className="kpi-value">{kpis.pending_invoices || invoices.length || 0}</div>
           </div>
           <div className="kpi-card purple">
-            <div className="kpi-label">Commission CT (mois courant)</div>
-            <div className="kpi-value">{series[series.length - 1]?.commission?.toLocaleString()} MGA</div>
+            <div className="kpi-label">Commission USRA-CARE (mois)</div>
+            <div className="kpi-value">{((kpis.commission_mga || series[series.length - 1]?.commission) || 0).toLocaleString()} MGA</div>
           </div>
         </div>
 

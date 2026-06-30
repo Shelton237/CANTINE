@@ -6,7 +6,21 @@ const { Pool }   = require('pg');
 const app = express();
 
 // ─── Middlewares ───────────────────────────────────────────
-app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
+const ALLOWED_ORIGINS = [
+  'https://app.cantine.usra-care.com',
+  'http://localhost:3000',
+  'http://localhost:5173',
+  ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : [])
+];
+app.use(cors({
+  origin: (origin, callback) => {
+    // Autoriser les requêtes sans origin (Postman, mobile, etc.)
+    if (!origin) return callback(null, true);
+    if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS: origine non autorisée — ${origin}`));
+  },
+  credentials: true
+}));
 app.use(express.json());
 
 // ─── Base de données ───────────────────────────────────────

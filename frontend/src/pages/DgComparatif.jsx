@@ -55,7 +55,7 @@ export default function DgComparatif() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', alignItems: 'start' }}>
             {canteens.map(c => {
               const r = reports[c.id];
-              if(!r) return <div key={c.id} className="card p-4">Chargement {c.name}...</div>;
+              if(!r) return <div key={c.id} className="card" style={{padding:'1rem',color:'var(--muted)'}}>Chargement {c.name}...</div>;
               
               const actual = r.actual?.total || 0;
               const quota = r.quota?.monthly || 1;
@@ -84,8 +84,8 @@ export default function DgComparatif() {
                        {c.name}
                     </div>
                     <div style={{ fontSize: '0.85rem', color: 'var(--muted)', marginTop: '4px' }}>
-                      Ouverture : {c.opening_time} - {c.closing_time} <br/>
-                      {c.status === 'open' ? <span style={{color:'var(--green)'}}>Service Actif</span> : <span style={{color:'var(--red)'}}>Fermée</span>}
+                      {c.location ? <span>{c.location}<br/></span> : null}
+                      {c.is_open ? <span style={{color:'var(--green)'}}>Service Actif</span> : <span style={{color:'var(--red)'}}>Fermée</span>}
                     </div>
                   </div>
                   
